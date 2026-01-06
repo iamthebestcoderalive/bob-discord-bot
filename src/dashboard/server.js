@@ -13,7 +13,7 @@ export class Dashboard {
         this.app = express();
         this.httpServer = createServer(this.app);
         this.io = new Server(this.httpServer);
-        this.port = 3000;
+        this.port = process.env.PORT || 3000;
         this.activeSocket = null; // Only one controller allowed (The Boss)
 
         this.setupExpress();
