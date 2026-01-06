@@ -583,16 +583,17 @@ const inviteInput = document.getElementById('invite-input');
 const searchBtn = document.getElementById('search-btn');
 const searchResult = document.getElementById('search-result');
 
-const code = inviteInput.value.trim();
-if (!code) return;
+searchBtn.addEventListener('click', () => {
+    const code = inviteInput.value.trim();
+    if (!code) return;
 
-// Direct Server ID Check (Snowflake)
-if (/^\d{17,20}$/.test(code)) {
-    const guildId = code;
-    const clientId = '1323396483482914856'; // Bob's ID
-    const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=8&guild_id=${guildId}&disable_guild_select=true&scope=bot`;
+    // Direct Server ID Check (Snowflake)
+    if (/^\d{17,20}$/.test(code)) {
+        const guildId = code;
+        const clientId = '1323396483482914856'; // Bob's ID
+        const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=8&guild_id=${guildId}&disable_guild_select=true&scope=bot`;
 
-    searchResult.innerHTML = `
+        searchResult.innerHTML = `
             <div class="server-card">
                 <div class="card-banner" style="background-color: #202225;"></div>
                 <div class="card-icon" style="background-image: url('https://cdn.discordapp.com/embed/avatars/0.png'); filter: grayscale(100%);"></div>
@@ -603,14 +604,14 @@ if (/^\d{17,20}$/.test(code)) {
             </div>
         `;
 
-    document.getElementById('manual-join-btn').onclick = () => {
-        window.open(authUrl, '_blank', 'width=500,height=800');
-    };
-    return;
-}
+        document.getElementById('manual-join-btn').onclick = () => {
+            window.open(authUrl, '_blank', 'width=500,height=800');
+        };
+        return;
+    }
 
-searchResult.innerHTML = '<div style="color: grey;">Searching...</div>';
-socket.emit('lookupInvite', code);
+    searchResult.innerHTML = '<div style="color: grey;">Searching...</div>';
+    socket.emit('lookupInvite', code);
 });
 
 socket.on('lookupResult', (data) => {
