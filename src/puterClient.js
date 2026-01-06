@@ -74,6 +74,16 @@ ${contextInfo.serverPersona || 'Use your Default Personality.'}
             contextMessages.forEach(msg => {
                 const role = msg.author.bot ? 'assistant' : 'user';
                 let content = msg.content;
+
+                // [NEW] Media Awareness
+                if (msg.attachments && msg.attachments.size > 0) {
+                    const descriptions = msg.attachments.map(a => `[Attachment: ${a.name} (${a.contentType || 'file'})]`).join(' ');
+                    content += `\n${descriptions} (I can see this file exists)`;
+                }
+                if (msg.embeds && msg.embeds.length > 0) {
+                    content += `\n[Embed: ${msg.embeds[0].title || 'Untitled Embed'}]`;
+                }
+
                 if (role === 'user') {
                     const name = msg.author.displayName || msg.author.username;
                     content = `[User: ${name}] ${content}`;
@@ -124,7 +134,7 @@ ${contextInfo.serverPersona || 'Use your Default Personality.'}
                 if (/\[SILENCE\]/i.test(responseText)) return '';
                 return responseText;
             } else {
-                console.error('Unexpected API Response:', JSON.stringify(data, null, 2));
+                console.error('Unexpected API Response structure:', JSON.stringify(data, null, 2));
                 return "Grr... I spoke to the cloud but it spoke gibberish. (Check Logs)";
             }
 
