@@ -1,0 +1,36 @@
+**Role:** Senior Node.js & Discord Bot Engineer.
+
+**Section 1: The Auto-Join Critical Failure**
+**Problem:** My `npm install` command to get `puppeteer-extra` failed with a **PowerShell Security Error**:
+> `File ...\npm.ps1 cannot be loaded because running scripts is disabled on this system.`
+> `CategoryInfo : SecurityError`
+
+**Impact:** The `auto_joiner.js` script imports these missing packages, so the Node.js process likely crashes or hangs silently when I try to run the function, causing the UI to spin forever at "HACKING MAINFRAME...".
+
+**Task 1:** Provide a **CMD-safe** installation command that bypasses PowerShell restrictions (e.g. `npm install ...` but run in a way that doesn't trigger ps1 scripts, or maybe `Set-ExecutionPolicy` fix if I have to).
+**Task 2:** Provide a fallback `auto_joiner.js` that uses **Standard Puppeteer**, but includes the best possible "Stealth" arguments (User-Agent spoofing, feature flag blocking) to try and work without the extra plugins, just in case I can't install them.
+
+---
+
+**Section 2: Feature Request - Moderation & Profiles**
+**Context:** I have a Dashboard (Socket.io) and a Bot (Discord.js).
+**Goal:** Add Moderation Controls to the **User Profile Modal**.
+
+**Requirements:**
+1.  **UI Update (HTML/CSS)**:
+    *   In the `#profileModal`, add a row of **Danger Buttons**:
+        *   `[TIMEOUT 1h]` (Yellow)
+        *   `[KICK]` (Orange)
+        *   `[BAN]` (Red)
+    *   Add a visual indicator of their **Role Color** on their name.
+
+2.  **Backend Logic (Node.js)**:
+    *   Listen for `socket.on('modAction', { action: 'kick', userId, guildId })`.
+    *   Execute the Discord.js command (`member.kick()`, `member.timeout()`, etc.).
+    *   **Permission Check**: Ensure the Bot (and the User clicking) has permissions (or just the Bot since it's a "User-Like" automation, maybe just check if `BOSS_USER_ID` clicked?).
+
+3.  **Full Profile Enhanced**:
+    *   The user wants to see "View Image Sent" or "Recent Activity".
+    *   Suggest how to fetch the last image sent by this user and display it in the modal.
+
+Please provide the **Standard Puppeteer Fallback Code** and the **Full Stack Moderation Implementation**.

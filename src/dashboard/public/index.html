@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bob Control Panel</title>
+    <link rel="stylesheet" href="style.css?v=2.1">
+</head>
+
+<body class="theme-dark">
+    <div id="app">
+        <!-- Server Sidebar -->
+        <!-- Server Sidebar -->
+        <div class="sidebar">
+            <!-- Home/DM Toggle Button -->
+            <div id="home-button" class="server-icon home-icon">B</div>
+            <div class="separator"></div>
+
+            <div id="server-list">
+                <!-- Servers injected by JS -->
+            </div>
+            <div id="dm-list" style="display: none;">
+                <!-- DMs injected by JS -->
+            </div>
+
+            <!-- Discovery (Moved to Sidebar Bottom or User Area? User said Bottom Left) -->
+            <!-- We'll put it in User Area as requested -->
+        </div>
+
+        <!-- Channel Sidebar -->
+        <div id="channel-list" class="sidebar-secondary">
+            <div class="header">
+                <span id="server-name">Dashboard</span>
+            </div>
+            <div id="channels-container">
+                <!-- Channels injected here -->
+            </div>
+            <div class="user-area">
+                <div class="user-info-container">
+                    <img id="user-avatar" src="" alt="">
+                    <div class="user-info">
+                        <span id="username">Bob</span>
+                        <span id="discriminator">#Bot</span>
+                    </div>
+                </div>
+                <div class="user-actions">
+                    <button id="discovery-btn" title="Discover / Join Server" class="action-btn">🧭</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div id="chat-area" class="main-content">
+            <div class="chat-header">
+                <span id="channel-header-name"># general</span>
+                <div class="header-controls">
+                    <!-- Icons moved here later if needed -->
+                    <label class="switch">
+                        <input type="checkbox" id="mode-toggle">
+                        <span class="slider round"></span>
+                    </label>
+                    <span id="mode-label">Auto Mode</span>
+                </div>
+            </div>
+
+            <div class="chat-wrapper">
+                <div id="messages-container">
+                    <!-- Messages injected here -->
+                </div>
+                <div id="typing-indicator"
+                    style="display: none; padding: 0 16px; color: #dbdee1; font-size: 12px; font-weight: bold; margin-bottom: 5px;">
+                    <!-- "User is typing..." -->
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <div class="input-wrapper">
+                    <div class="upload-icon">⊕</div>
+                    <input type="text" id="message-input" placeholder="Message #general" autocomplete="off">
+                    <div class="emoji-icon">😊</div>
+                </div>
+            </div>
+        </div>
+        <!-- Discovery View (Hidden by default) -->
+        <div id="discovery-view" class="main-content" style="display: none;">
+            <div class="chat-header">
+                <span id="discovery-header">Server Discovery</span>
+            </div>
+            <div class="discovery-content">
+                <div class="search-box">
+                    <h1>Find a Server</h1>
+                    <p>Enter an Invite Code or Vanity URL (e.g. 'midjourney')</p>
+                    <div class="input-group">
+                        <input type="text" id="invite-input" placeholder="discord.gg/...">
+                        <button id="search-btn">Search</button>
+                    </div>
+                </div>
+                <div id="search-result">
+                    <!-- Result Card injected here -->
+                </div>
+            </div>
+        </div>
+        <!-- Profile Modal (Added per Renew Prompt) -->
+        <div id="profileModal" class="modal-overlay" style="display: none;">
+            <div class="modal-content">
+                <div id="modalBanner" class="modal-banner"></div>
+
+                <div class="modal-header">
+                    <img id="modalAvatar" src="" alt="Avatar" class="modal-avatar">
+                    <button id="btnOpenDM" class="btn-mod"
+                        style="position: absolute; right: 20px; bottom: 10px; background-color: #5865F2; padding: 5px 10px; font-size: 12px; display: flex; align-items: center; gap: 5px;">
+                        💬 Open DM
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <h2 id="modalUsername">Username<span>#0000</span></h2>
+                    <p id="modalJoined" class="modal-date">Joined: ...</p>
+
+                    <div class="modal-roles-section">
+                        <h4>ROLES</h4>
+                        <div id="modalRoles" class="roles-grid">
+                            <!-- Roles injected here -->
+                        </div>
+                    </div>
+
+                    <!-- LONG TERM MEMORY -->
+                    <div class="memory-section"
+                        style="margin-top: 20px; border-top: 1px solid #333; padding-top: 15px;">
+                        <h4 style="color: #b9bbbe; font-size: 12px; margin-bottom: 10px;">GLOBAL MEMORY (Private Notes)
+                        </h4>
+                        <textarea id="modelMemory"
+                            placeholder="Writes facts here. Bob will remember this forever, across all servers."
+                            style="width: 100%; height: 80px; background: #202225; color: #dcddde; border: 1px solid #2f3136; border-radius: 4px; padding: 10px; resize: none; font-size: 14px; box-sizing: border-box;"></textarea>
+                        <button id="btnSaveMemory" class="btn-mod"
+                            style="background-color: #5865F2; width: 100%; margin-top: 8px;">💾 Save Memory</button>
+                    </div>
+
+                    <!-- MODERATION CONTROLS -->
+                    <div class="mod-section" style="margin-top: 20px; border-top: 1px solid #333; padding-top: 15px;">
+                        <h4 style="color: #b9bbbe; font-size: 12px; margin-bottom: 10px;">MODERATION</h4>
+
+                        <!-- Timeout Config -->
+                        <div class="mod-input-group" style="margin-bottom: 10px;">
+                            <label for="timeoutDuration" style="color: #b9bbbe; font-size: 11px;">Timeout
+                                Duration:</label>
+                            <select id="timeoutDuration"
+                                style="background: #202225; color: #fff; border: 1px solid #2f3136; border-radius: 4px; padding: 4px;">
+                                <option value="60000">1 Minute</option>
+                                <option value="3600000" selected>1 Hour</option>
+                                <option value="86400000">24 Hours</option>
+                                <option value="604800000">1 Week</option>
+                            </select>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="mod-buttons">
+                            <button id="btnTimeout" class="btn-mod btn-yellow">🕒 Timeout</button>
+                            <button id="btnKick" class="btn-mod btn-orange">🥾 Kick</button>
+                            <button id="btnBan" class="btn-mod btn-red">🔨 Ban</button>
+                        </div>
+
+                        <!-- Forgive Buttons -->
+                        <div class="mod-buttons" style="margin-top: 8px;">
+                            <button id="btnUntimeout" class="btn-mod btn-green">🔊 Un-Mute</button>
+                            <button id="btnUnban" class="btn-mod btn-green">🤝 Un-Ban</button>
+                        </div>
+                    </div>
+
+                    <!-- RECENT ACTIVITY -->
+                    <div class="activity-section" style="margin-top: 15px;">
+                        <h4 style="color: #b9bbbe; font-size: 12px;">LAST ATTACHMENT</h4>
+                        <div id="modalRecentImage"
+                            style="width: 100%; height: 150px; background: #2f3136; border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-top: 5px;">
+                            <span style="color: #72767d; font-size: 12px;">No recent images found in this
+                                channel.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js"></script>
+</body>
+
+</html>

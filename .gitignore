@@ -1,0 +1,12 @@
+node_modules/
+.env
+data/*.db
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+# Browser Cache
+.chrome_user_data/
+.chrome_test_profile*/
+.chrome_profile*/
+.cache/

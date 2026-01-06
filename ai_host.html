@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script src="https://js.puter.com/v2/"></script>
+</head>
+
+<body>
+    <h1>AI Host Active</h1>
+    <script>
+        // Expose a global function for Puppeteer to call
+        window.generateAI = async function (prompt, systemPrompt) {
+            console.log("generateAI called");
+            try {
+                // Wait for Puter to be ready
+                let retries = 50;
+                while (typeof puter === 'undefined' && retries > 0) {
+                    console.log("Waiting for puter... " + retries);
+                    await new Promise(r => setTimeout(r, 100));
+                    retries--;
+                }
+
+                if (typeof puter === 'undefined') {
+                    console.error("Puter not found");
+                    return "Error: Puter.js failed to load after 5 seconds";
+                }
+                console.log("Puter found!");
+
+                // Construct messages array
+                const messages = [
+                    { role: 'system', content: systemPrompt || 'You are a helpful assistant.' },
+                    { role: 'user', content: prompt }
+                ];
+
+                // Use a chat model that is free on frontend
+                // The tutorial mentions gpt-4o-mini is available
+                // Note: The tutorial uses puter.ai.chat(messages, options) or puter.ai.chat(prompt, options)
+                const resp = await puter.ai.chat(messages, {
+                    model: 'gpt-4o-mini',
+                    temperature: 0.7
+                });
+
+                // Handle different response shapes just in case
+                if (typeof resp === 'string') return resp;
+                return resp.message?.content || resp.content || JSON.stringify(resp);
+            } catch (err) {
+                return "Error: " + err.message;
+            }
+        };
+    </script>
+</body>
+
+</html>
