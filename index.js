@@ -11,6 +11,9 @@ async function main() {
 
     const bot = new BobBot();
 
+    // Start Dashboard IMMEDIATELY (For Render Port Binding)
+    bot.startDashboard();
+
     try {
         await bot.login(token);
     } catch (error) {

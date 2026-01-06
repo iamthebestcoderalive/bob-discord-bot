@@ -39,11 +39,16 @@ export class BobBot extends Client {
         this.setupEventHandlers();
     }
 
+    startDashboard() {
+        if (this.dashboard) {
+            this.dashboard.start();
+        }
+    }
+
     setupEventHandlers() {
         this.once('ready', () => {
             console.log(`Logged in as ${this.user.tag} (ID: ${this.user.id})`);
             console.log('Bob is ready on the street.');
-            this.dashboard.start();
         });
 
         this.on('messageCreate', async (message) => {
