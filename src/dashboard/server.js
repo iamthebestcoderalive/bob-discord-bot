@@ -21,7 +21,12 @@ export class Dashboard {
     }
 
     setupExpress() {
-        // Serve static files
+        // Request Logger
+        this.app.use((req, res, next) => {
+            console.log(`[WEB] ${req.method} ${req.url}`);
+            next();
+        });
+
         // Serve static files
         this.app.use(express.static(join(__dirname, 'public')));
 
