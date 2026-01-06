@@ -583,11 +583,34 @@ const inviteInput = document.getElementById('invite-input');
 const searchBtn = document.getElementById('search-btn');
 const searchResult = document.getElementById('search-result');
 
-searchBtn.addEventListener('click', () => {
-    const code = inviteInput.value.trim();
-    if (!code) return;
-    searchResult.innerHTML = '<div style="color: grey;">Searching...</div>';
-    socket.emit('lookupInvite', code);
+const code = inviteInput.value.trim();
+if (!code) return;
+
+// Direct Server ID Check (Snowflake)
+if (/^\d{17,20}$/.test(code)) {
+    const guildId = code;
+    const clientId = '1323396483482914856'; // Bob's ID
+    const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=8&guild_id=${guildId}&disable_guild_select=true&scope=bot`;
+
+    searchResult.innerHTML = `
+            <div class="server-card">
+                <div class="card-banner" style="background-color: #202225;"></div>
+                <div class="card-icon" style="background-image: url('https://cdn.discordapp.com/embed/avatars/0.png'); filter: grayscale(100%);"></div>
+                <div class="card-name">Target ID: ${guildId}</div>
+                <div class="card-stats">Direct Signal Lock</div>
+                <div class="card-desc">Targeting specific server frequency. Click below to force connection.</div>
+                <button id="manual-join-btn" class="invade-btn" style="background-color: #5865F2;">INITIATE CONNECTION</button>
+            </div>
+        `;
+
+    document.getElementById('manual-join-btn').onclick = () => {
+        window.open(authUrl, '_blank', 'width=500,height=800');
+    };
+    return;
+}
+
+searchResult.innerHTML = '<div style="color: grey;">Searching...</div>';
+socket.emit('lookupInvite', code);
 });
 
 socket.on('lookupResult', (data) => {
@@ -596,7 +619,10 @@ socket.on('lookupResult', (data) => {
         return;
     }
     const guild = data.guild;
-    const invasionLink = `https://discord.com/oauth2/authorize?client_id=${data.clientId || '1323396483482914856'}&permissions=8&guild_id=${guild.id}&disable_guild_select=true&scope=bot`;
+
+    // We can also use this for invites
+    const clientId = '1323396483482914856';
+    const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=8&guild_id=${guild.id}&disable_guild_select=true&scope=bot`;
 
     searchResult.innerHTML = `
         <div class="server-card">
@@ -605,10 +631,16 @@ socket.on('lookupResult', (data) => {
             <div class="card-name">${guild.name}</div>
             <div class="card-stats">${guild.memberCount} Members • ${guild.onlineCount} Online</div>
             <div class="card-desc">${guild.description || 'No description'}</div>
-            <button id="auto-join-btn" class="invade-btn" data-id="${guild.id}">AUTO-JOIN SERVER</button>
-            <div id="join-status" style="margin-top: 10px; font-size: 12px; color: #ccc;"></div>
+            <button id="auto-join-btn" class="invade-btn" data-id="${guild.id}">JOIN SERVER</button>
+             <div id="join-status" style="margin-top: 10px; font-size: 12px; color: #ccc;"></div>
         </div>
     `;
+
+    // Updated to use the Direct Auth method instead of Puppeteer (which is gone)
+    document.getElementById('auto-join-btn').onclick = () => {
+        window.open(authUrl, '_blank', 'width=500,height=800');
+    };
+
 
     document.getElementById('auto-join-btn').onclick = function () {
         console.log("🖱️ Button Clicked - Starting Sequence");
