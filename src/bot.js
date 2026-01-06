@@ -64,6 +64,28 @@ export class BobBot extends Client {
             if (this.dashboard && this.dashboard.broadcastTyping) {
                 this.dashboard.broadcastTyping(typing.channel.id, typing.user.id);
             }
+
+            // 3. SMART TYPING: If we are planning to reply to this channel, WAIT.
+            // If a user is typing in a channel where we have a pending response timer,
+            // we extend that timer to wait for them to finish.
+            if (this.debounceTimers.has(typing.channel.id)) {
+                // Check if the typer is a human (ignore other bots)
+                if (!typing.user.bot) {
+                    // console.log(`[Smart Wait] User ${typing.user.username} is typing in ${typing.channel.name}. Extending wait...`);
+
+                    // Clear existing timer
+                    const oldTimer = this.debounceTimers.get(typing.channel.id);
+                    clearTimeout(oldTimer);
+
+                    // Set new "Extended" timer (Wait 4 seconds after they START typing)
+                    // If they keep typing, this event fires again and extends it again.
+                    const newTimer = setTimeout(() => {
+                        this.processChannelResponse(typing.channel);
+                    }, 4000); // 4 Seconds wait for typing to stop
+
+                    this.debounceTimers.set(typing.channel.id, newTimer);
+                }
+            }
         });
 
         // Interaction Handler (Slash Commands & Modals)
@@ -383,7 +405,13 @@ export class BobBot extends Client {
                 authorId: message.author.id,
                 authorColor: member ? member.displayHexColor : '#ffffff', // COLOR
                 content: message.content,
-                timestamp: new Date().toLocaleTimeString()
+                content: message.content,
+                timestamp: new Date().toLocaleTimeString(),
+                // RICH MEDIA SUPPORT
+                attachments: message.attachments.map(a => ({ url: a.url, contentType: a.contentType })),
+                embeds: message.embeds.map(e => ({ title: e.title, description: e.description, image: e.image, thumbnail: e.thumbnail })),
+                reactions: message.reactions.cache.map(r => ({ emoji: r.emoji.name, count: r.count })),
+                mentions: message.mentions.users.map(u => ({ id: u.id, username: u.username }))
             });
         }
 
@@ -490,273 +518,267 @@ export class BobBot extends Client {
         const timerCallback = () => {
             // DYNAMIC TYPING CHECK
             // If someone was typing recently (last 3s), we WAIT.
-            // This mimics human behavior: don't interrupt if someone is clearly writing more.
-            const lastType = this.lastTypingTime.get(channelId) || 0;
-            const timeSinceType = Date.now() - lastType;
+            // Reschedule buffer
+            const newTimer = setTimeout(timerCallback, 2000);
+            this.debounceTimers.set(channelId, newTimer);
+            return;
+        }
 
-            if (timeSinceType < 3000) {
-                console.log(`Silence check failed (Typed ${timeSinceType}ms ago). Waiting...`);
-                // Reschedule buffer
-                const newTimer = setTimeout(timerCallback, 2000);
-                this.debounceTimers.set(channelId, newTimer);
-                return;
-            }
+        this.processChannelResponse(message.channel);
+    };
 
-            this.processChannelResponse(message.channel);
-        };
-
-        const timer = setTimeout(timerCallback, DEBOUNCE_DELAY_MS);
+    const timer = setTimeout(timerCallback, DEBOUNCE_DELAY_MS);
 
         this.debounceTimers.set(channelId, timer);
     }
 
     async handleBossCommand(message) {
-        try {
-            // Format: !tx <channel_id> <message>
-            const parts = message.content.split(' ');
-            if (parts.length < 3) {
-                await message.channel.send('Usage: `!tx <channel_id> <message>`');
-                return;
-            }
-
-            const targetChannelId = parts[1];
-            const contentToSend = parts.slice(2).join(' ');
-
-            const targetChannel = await this.channels.fetch(targetChannelId);
-
-            if (targetChannel) {
-                await targetChannel.send(contentToSend);
-                await message.channel.send(`✅ Sent to ${targetChannel.name} (\`${targetChannelId}\`)`);
-                console.log(`Boss sent remote message to ${targetChannelId}: ${contentToSend}`);
-            } else {
-                await message.channel.send(`❌ Could not find channel \`${targetChannelId}\``);
-            }
-        } catch (error) {
-            await message.channel.send(`❌ Error: ${error.message}`);
-            console.error('Command Error:', error);
+    try {
+        // Format: !tx <channel_id> <message>
+        const parts = message.content.split(' ');
+        if (parts.length < 3) {
+            await message.channel.send('Usage: `!tx <channel_id> <message>`');
+            return;
         }
+
+        const targetChannelId = parts[1];
+        const contentToSend = parts.slice(2).join(' ');
+
+        const targetChannel = await this.channels.fetch(targetChannelId);
+
+        if (targetChannel) {
+            await targetChannel.send(contentToSend);
+            await message.channel.send(`✅ Sent to ${targetChannel.name} (\`${targetChannelId}\`)`);
+            console.log(`Boss sent remote message to ${targetChannelId}: ${contentToSend}`);
+        } else {
+            await message.channel.send(`❌ Could not find channel \`${targetChannelId}\``);
+        }
+    } catch (error) {
+        await message.channel.send(`❌ Error: ${error.message}`);
+        console.error('Command Error:', error);
     }
+}
 
     async processChannelResponse(channel) {
-        try {
-            // Fetch fresh history
-            const messages = await channel.messages.fetch({ limit: MSG_HISTORY_LIMIT });
-            const history = Array.from(messages.values()).reverse();
+    try {
+        // Fetch fresh history
+        const messages = await channel.messages.fetch({ limit: MSG_HISTORY_LIMIT });
+        const history = Array.from(messages.values()).reverse();
 
-            // Find the primary user (last non-bot user)
-            const lastUserMsg = [...history].reverse().find(m => m.author.id !== this.user.id);
-            if (!lastUserMsg) return;
+        // Find the primary user (last non-bot user)
+        const lastUserMsg = [...history].reverse().find(m => m.author.id !== this.user.id);
+        if (!lastUserMsg) return;
 
-            // Get user tier
-            let userTier = getUserTier(lastUserMsg.author.id);
+        // Get user tier
+        let userTier = getUserTier(lastUserMsg.author.id);
 
-            if (lastUserMsg.author.id === BOSS_USER_ID) {
-                console.log(`Global Boss detected (${lastUserMsg.author.tag}). Enforcing Tier 1.`);
-                userTier = 1;
-            }
-
-            // Generate Response
-            console.log(`Processing batch for channel ${channel.name}...`);
-
-            // MANUAL MODE CHECK
-            if (this.manualMode) {
-                console.log('Manual Mode execution detected. Skipping AI generation.');
-                return;
-            }
-
-            // await channel.sendTyping(); // Removed per user request (Stealth Mode)
-
-            // Gather context info
-            const globalHistory = getRecentUserMessages(lastUserMsg.author.id, 10);
-            const userFacts = getUserMemory(lastUserMsg.author.id);
-
-            if (userFacts) {
-                console.log(`[MEMORY] Found facts for ${lastUserMsg.author.username}: "${userFacts}"`);
-            }
-
-            const contextInfo = {
-                serverName: channel.guild?.name || 'DM',
-                channelName: channel.name || 'DM',
-                visibleChannels: channel.guild ? channel.guild.channels.cache
-                    .filter(c => [ChannelType.GuildText, ChannelType.GuildPublicThread, ChannelType.GuildPrivateThread].includes(c.type))
-                    .map(c => `${c.name} (${c.id})`) : [],
-                availableServers: this.guilds.cache.map(g => `${g.name} (${g.id})`),
-                // Memory Injection
-                globalUserHistory: globalHistory.map(m => `[${new Date(m.timestamp).toLocaleTimeString()}] ${m.content}`).join('\n'),
-                userLongTermMemory: userFacts || "No prior long-term memory."
-            };
-
-            const responseText = await this.llm.generateResponse(history, userTier, contextInfo);
-
-            if (responseText) {
-                // Check for tool usage
-                const toolMatch = responseText.match(/\[\[TX:\s*(.*?)\s*\|\s*(.*?)\s*\|\s*(.*?)\]\]/s);
-                let toolSuccess = true;
-                let finalResponse = responseText;
-
-                if (toolMatch) {
-                    const [fullMatch, serverName, channelName, msgContent] = toolMatch;
-                    const { success, targetChannel } = await this.handleToolCommand(
-                        lastUserMsg,
-                        serverName.trim(),
-                        channelName.trim(),
-                        msgContent.trim()
-                    );
-
-                    toolSuccess = success;
-                    finalResponse = responseText.replace(fullMatch, '').trim();
-
-                    // Prevent double posting
-                    if (toolSuccess && targetChannel && targetChannel.id === channel.id) {
-                        console.log('Tool targeted current channel. Suppressing duplicate text response.');
-                        finalResponse = '';
-                    }
-                }
-
-                if (finalResponse && (!toolMatch || toolSuccess)) {
-                    console.log(`Sending response: ${finalResponse}`);
-                    await channel.send(finalResponse);
-                }
-            } else {
-                console.log('LLM chose SILENCE.');
-            }
-
-        } catch (error) {
-            console.error('Error in processChannelResponse:', error);
-        } finally {
-            // Cleanup timer
-            this.debounceTimers.delete(channel.id);
+        if (lastUserMsg.author.id === BOSS_USER_ID) {
+            console.log(`Global Boss detected (${lastUserMsg.author.tag}). Enforcing Tier 1.`);
+            userTier = 1;
         }
-    }
 
-    normalizeText(text) {
-        if (!text) return '';
-        return text
-            .normalize('NFKD') // Decompose unicode (e.g., 𝙄 -> I)
-            .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
-            .replace(/[^a-zA-Z0-9\s]/g, '') // Remove non-alphanumeric (optional, but helps with font noise)
-            .toLowerCase()
-            .trim();
+        // Generate Response
+        console.log(`Processing batch for channel ${channel.name}...`);
+
+        // MANUAL MODE CHECK
+        if (this.manualMode) {
+            console.log('Manual Mode execution detected. Skipping AI generation.');
+            return;
+        }
+
+        // await channel.sendTyping(); // Removed per user request (Stealth Mode)
+
+        // Gather context info
+        const globalHistory = getRecentUserMessages(lastUserMsg.author.id, 10);
+        const userFacts = getUserMemory(lastUserMsg.author.id);
+
+        if (userFacts) {
+            console.log(`[MEMORY] Found facts for ${lastUserMsg.author.username}: "${userFacts}"`);
+        }
+
+        const contextInfo = {
+            serverName: channel.guild?.name || 'DM',
+            channelName: channel.name || 'DM',
+            visibleChannels: channel.guild ? channel.guild.channels.cache
+                .filter(c => [ChannelType.GuildText, ChannelType.GuildPublicThread, ChannelType.GuildPrivateThread].includes(c.type))
+                .map(c => `${c.name} (${c.id})`) : [],
+            availableServers: this.guilds.cache.map(g => `${g.name} (${g.id})`),
+            // Memory Injection
+            globalUserHistory: globalHistory.map(m => `[${new Date(m.timestamp).toLocaleTimeString()}] ${m.content}`).join('\n'),
+            userLongTermMemory: userFacts || "No prior long-term memory."
+        };
+
+        const responseText = await this.llm.generateResponse(history, userTier, contextInfo);
+
+        if (responseText) {
+            // Check for tool usage
+            const toolMatch = responseText.match(/\[\[TX:\s*(.*?)\s*\|\s*(.*?)\s*\|\s*(.*?)\]\]/s);
+            let toolSuccess = true;
+            let finalResponse = responseText;
+
+            if (toolMatch) {
+                const [fullMatch, serverName, channelName, msgContent] = toolMatch;
+                const { success, targetChannel } = await this.handleToolCommand(
+                    lastUserMsg,
+                    serverName.trim(),
+                    channelName.trim(),
+                    msgContent.trim()
+                );
+
+                toolSuccess = success;
+                finalResponse = responseText.replace(fullMatch, '').trim();
+
+                // Prevent double posting
+                if (toolSuccess && targetChannel && targetChannel.id === channel.id) {
+                    console.log('Tool targeted current channel. Suppressing duplicate text response.');
+                    finalResponse = '';
+                }
+            }
+
+            if (finalResponse && (!toolMatch || toolSuccess)) {
+                console.log(`Sending response: ${finalResponse}`);
+                await channel.send(finalResponse);
+            }
+        } else {
+            console.log('LLM chose SILENCE.');
+        }
+
+    } catch (error) {
+        console.error('Error in processChannelResponse:', error);
+    } finally {
+        // Cleanup timer
+        this.debounceTimers.delete(channel.id);
     }
+}
+
+normalizeText(text) {
+    if (!text) return '';
+    return text
+        .normalize('NFKD') // Decompose unicode (e.g., 𝙄 -> I)
+        .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+        .replace(/[^a-zA-Z0-9\s]/g, '') // Remove non-alphanumeric (optional, but helps with font noise)
+        .toLowerCase()
+        .trim();
+}
 
     // New Interaction Handlers for Voice
     async handleVoiceInteractions(interaction) {
-        if (interaction.commandName === 'join') {
-            const channel = interaction.member.voice.channel;
-            if (!channel) return interaction.reply({ content: '❌ You are not in a voice channel.', ephemeral: true });
+    if (interaction.commandName === 'join') {
+        const channel = interaction.member.voice.channel;
+        if (!channel) return interaction.reply({ content: '❌ You are not in a voice channel.', ephemeral: true });
 
-            await interaction.deferReply();
-            const success = await this.voiceHandler.joinChannel(channel);
-            if (success) interaction.editReply('🔊 Connected. I am listening (to text).');
-            else interaction.editReply('❌ Failed to join.');
-        }
-        else if (interaction.commandName === 'leave') {
-            this.voiceHandler.leaveChannel();
-            interaction.reply({ content: '👋 Disconnected.' });
-        }
+        await interaction.deferReply();
+        const success = await this.voiceHandler.joinChannel(channel);
+        if (success) interaction.editReply('🔊 Connected. I am listening (to text).');
+        else interaction.editReply('❌ Failed to join.');
     }
+    else if (interaction.commandName === 'leave') {
+        this.voiceHandler.leaveChannel();
+        interaction.reply({ content: '👋 Disconnected.' });
+    }
+}
 
     async handleToolCommand(ctxMessage, serverName, channelName, content) {
-        console.log(`Attempting to send '${content}' to ${serverName}/${channelName}`);
+    console.log(`Attempting to send '${content}' to ${serverName}/${channelName}`);
 
-        // Resolve Guild
-        let targetGuild = null;
-        const normalizedInputServer = this.normalizeText(serverName);
-        const currentServerName = ctxMessage.guild?.name;
+    // Resolve Guild
+    let targetGuild = null;
+    const normalizedInputServer = this.normalizeText(serverName);
+    const currentServerName = ctxMessage.guild?.name;
 
-        // 1. Direct ID Match (Precision)
-        if (serverName.match(/^\d+$/)) {
-            targetGuild = this.guilds.cache.get(serverName);
-            if (targetGuild) console.log(`Resolved server by ID: ${targetGuild.name}`);
-        }
+    // 1. Direct ID Match (Precision)
+    if (serverName.match(/^\d+$/)) {
+        targetGuild = this.guilds.cache.get(serverName);
+        if (targetGuild) console.log(`Resolved server by ID: ${targetGuild.name}`);
+    }
 
-        // 2. Name Match (Normalized)
-        if (!targetGuild) {
-            if (['this server', 'current server', 'here', currentServerName ? this.normalizeText(currentServerName) : ''].includes(normalizedInputServer)) {
-                targetGuild = ctxMessage.guild;
-            } else {
-                // Exact match (case-insensitive)
-                targetGuild = this.guilds.cache.find(g => g.name.toLowerCase() === serverName.toLowerCase());
+    // 2. Name Match (Normalized)
+    if (!targetGuild) {
+        if (['this server', 'current server', 'here', currentServerName ? this.normalizeText(currentServerName) : ''].includes(normalizedInputServer)) {
+            targetGuild = ctxMessage.guild;
+        } else {
+            // Exact match (case-insensitive)
+            targetGuild = this.guilds.cache.find(g => g.name.toLowerCase() === serverName.toLowerCase());
 
-                // Normalized match (Handles Fancy Fonts)
-                if (!targetGuild) {
-                    targetGuild = this.guilds.cache.find(g => this.normalizeText(g.name) === normalizedInputServer);
-                }
-
-                // Fuzzy match (Normalized)
-                if (!targetGuild) {
-                    targetGuild = this.guilds.cache.find(g =>
-                        this.normalizeText(g.name).includes(normalizedInputServer) ||
-                        normalizedInputServer.includes(this.normalizeText(g.name))
-                    );
-                    if (targetGuild) {
-                        console.log(`Fuzzy matched server '${serverName}' -> '${targetGuild.name}'`);
-                    }
-                }
-            }
-        }
-
-        if (!targetGuild) {
-            console.warn(`Server '${serverName}' not found.`);
-            await ctxMessage.channel.send(`(whispering) I couldn't find ANY server matches for '${serverName}' (Normalized: ${normalizedInputServer}).`);
-            return { success: false, targetChannel: null };
-        }
-
-        // Resolve Channel
-        const normalizedInputChannel = this.normalizeText(channelName);
-        let targetChannel = null;
-
-        // 1. Direct ID Match (Precision)
-        if (channelName.match(/^\d+$/)) {
-            targetChannel = targetGuild.channels.cache.get(channelName);
-            if (targetChannel && targetChannel.type === ChannelType.GuildText) {
-                console.log(`Resolved channel by ID: ${targetChannel.name}`);
-            } else {
-                targetChannel = null; // Reset if not text
-            }
-        }
-
-        // 2. Name Match (Normalized)
-        if (!targetChannel) {
-            targetChannel = targetGuild.channels.cache.find(c =>
-                c.type === ChannelType.GuildText && c.name.toLowerCase() === channelName.toLowerCase()
-            );
-
-            // Normalized match
-            if (!targetChannel) {
-                targetChannel = targetGuild.channels.cache.find(c =>
-                    c.type === ChannelType.GuildText && this.normalizeText(c.name) === normalizedInputChannel
-                );
+            // Normalized match (Handles Fancy Fonts)
+            if (!targetGuild) {
+                targetGuild = this.guilds.cache.find(g => this.normalizeText(g.name) === normalizedInputServer);
             }
 
             // Fuzzy match (Normalized)
-            if (!targetChannel) {
-                targetChannel = targetGuild.channels.cache.find(c =>
-                    c.type === ChannelType.GuildText && (
-                        this.normalizeText(c.name).includes(normalizedInputChannel) ||
-                        normalizedInputChannel.includes(this.normalizeText(c.name))
-                    )
+            if (!targetGuild) {
+                targetGuild = this.guilds.cache.find(g =>
+                    this.normalizeText(g.name).includes(normalizedInputServer) ||
+                    normalizedInputServer.includes(this.normalizeText(g.name))
                 );
-                if (targetChannel) {
-                    console.log(`Fuzzy matched channel '${channelName}' -> '${targetChannel.name}'`);
+                if (targetGuild) {
+                    console.log(`Fuzzy matched server '${serverName}' -> '${targetGuild.name}'`);
                 }
             }
         }
+    }
 
-        if (!targetChannel) {
-            console.warn(`Channel '${channelName}' not found in ${targetGuild.name}.`);
-            await ctxMessage.channel.send(`(whispering) I found '${targetGuild.name}', but no channel matches '${channelName}'.`);
-            return { success: false, targetChannel: null };
-        }
+    if (!targetGuild) {
+        console.warn(`Server '${serverName}' not found.`);
+        await ctxMessage.channel.send(`(whispering) I couldn't find ANY server matches for '${serverName}' (Normalized: ${normalizedInputServer}).`);
+        return { success: false, targetChannel: null };
+    }
 
-        try {
-            await targetChannel.send(content);
-            await ctxMessage.react('✅');
-            return { success: true, targetChannel };
-        } catch (error) {
-            console.error('Failed to send TX:', error);
-            await ctxMessage.channel.send(`(whispering) Failed to send: ${error.message}`);
-            return { success: false, targetChannel: null };
+    // Resolve Channel
+    const normalizedInputChannel = this.normalizeText(channelName);
+    let targetChannel = null;
+
+    // 1. Direct ID Match (Precision)
+    if (channelName.match(/^\d+$/)) {
+        targetChannel = targetGuild.channels.cache.get(channelName);
+        if (targetChannel && targetChannel.type === ChannelType.GuildText) {
+            console.log(`Resolved channel by ID: ${targetChannel.name}`);
+        } else {
+            targetChannel = null; // Reset if not text
         }
     }
+
+    // 2. Name Match (Normalized)
+    if (!targetChannel) {
+        targetChannel = targetGuild.channels.cache.find(c =>
+            c.type === ChannelType.GuildText && c.name.toLowerCase() === channelName.toLowerCase()
+        );
+
+        // Normalized match
+        if (!targetChannel) {
+            targetChannel = targetGuild.channels.cache.find(c =>
+                c.type === ChannelType.GuildText && this.normalizeText(c.name) === normalizedInputChannel
+            );
+        }
+
+        // Fuzzy match (Normalized)
+        if (!targetChannel) {
+            targetChannel = targetGuild.channels.cache.find(c =>
+                c.type === ChannelType.GuildText && (
+                    this.normalizeText(c.name).includes(normalizedInputChannel) ||
+                    normalizedInputChannel.includes(this.normalizeText(c.name))
+                )
+            );
+            if (targetChannel) {
+                console.log(`Fuzzy matched channel '${channelName}' -> '${targetChannel.name}'`);
+            }
+        }
+    }
+
+    if (!targetChannel) {
+        console.warn(`Channel '${channelName}' not found in ${targetGuild.name}.`);
+        await ctxMessage.channel.send(`(whispering) I found '${targetGuild.name}', but no channel matches '${channelName}'.`);
+        return { success: false, targetChannel: null };
+    }
+
+    try {
+        await targetChannel.send(content);
+        await ctxMessage.react('✅');
+        return { success: true, targetChannel };
+    } catch (error) {
+        console.error('Failed to send TX:', error);
+        await ctxMessage.channel.send(`(whispering) Failed to send: ${error.message}`);
+        return { success: false, targetChannel: null };
+    }
+}
 }
