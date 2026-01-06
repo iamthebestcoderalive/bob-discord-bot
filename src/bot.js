@@ -578,7 +578,7 @@ export class BobBot extends Client {
                 serverName: channel.guild?.name || 'DM',
                 channelName: channel.name || 'DM',
                 visibleChannels: channel.guild ? channel.guild.channels.cache
-                    .filter(c => c.type === ChannelType.GuildText)
+                    .filter(c => [ChannelType.GuildText, ChannelType.GuildPublicThread, ChannelType.GuildPrivateThread].includes(c.type))
                     .map(c => `${c.name} (${c.id})`) : [],
                 availableServers: this.guilds.cache.map(g => `${g.name} (${g.id})`),
                 // Memory Injection
