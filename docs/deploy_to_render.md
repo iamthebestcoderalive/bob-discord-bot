@@ -39,6 +39,7 @@ Scroll down to "Environment Variables" and click **Add Environment Variable**:
 - `DISCORD_TOKEN`: (Your Bot Token)
 - `DISCORD_CLIENT_ID`: (Your App ID)
 - `PUTER_TOKEN`: (Your Puter.js Token)
+- `DASHBOARD_URL`: (Your Render URL, e.g. `https://bob-discord-bot.onrender.com` - **Important for Control Panel**)
 - `OWNER_AUTH_TOKEN`: (Optional, leave blank if not using `auto_joiner`)
 
 Click **Create Web Service**.

@@ -411,7 +411,8 @@ export class BobBot extends Client {
 
             // Generate One-Time Token
             this.currentControlToken = randomBytes(16).toString('hex');
-            const link = `http://localhost:3000/login/${this.currentControlToken}`;
+            const baseUrl = process.env.DASHBOARD_URL || `http://localhost:${process.env.PORT || 3000}`;
+            const link = `${baseUrl}/login/${this.currentControlToken}`;
 
             await message.author.send(`**Control Panel Access Granted.** 🕹️\n[**Click to Enter Dashboard**](${link})\n\n(This link is specific to this session).`);
             await message.delete(); // Delete command for security
