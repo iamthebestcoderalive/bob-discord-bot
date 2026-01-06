@@ -590,7 +590,7 @@ searchBtn.addEventListener('click', () => {
     // Direct Server ID Check (Snowflake)
     if (/^\d{17,20}$/.test(code)) {
         const guildId = code;
-        const clientId = '1323396483482914856'; // Bob's ID
+        const clientId = window.savedClientId || '1323396483482914856'; // Fallback to hardcoded if missing
         const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=8&guild_id=${guildId}&disable_guild_select=true&scope=bot`;
 
         searchResult.innerHTML = `

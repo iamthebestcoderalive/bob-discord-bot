@@ -349,7 +349,8 @@ export class Dashboard {
         socket.emit('init', {
             guilds,
             user: { username: this.bot.user.username, avatar: this.bot.user.displayAvatarURL() },
-            manualMode: this.bot.manualMode || false
+            manualMode: this.bot.manualMode || false,
+            clientId: this.bot.user.id // Send correct Client ID for OAuth
         });
     }
 
