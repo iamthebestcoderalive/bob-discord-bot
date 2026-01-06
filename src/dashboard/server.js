@@ -22,7 +22,16 @@ export class Dashboard {
 
     setupExpress() {
         // Serve static files
+        // Serve static files
         this.app.use(express.static(join(__dirname, 'public')));
+
+        this.app.get('/', (req, res) => {
+            res.send(`
+                <h1>Dashboard Online</h1>
+                <p>Status: Active</p>
+                <p>Gateway: Render</p>
+            `);
+        });
 
         // Secure Login Route (accessed via unique token from !control)
         this.app.get('/login/:token', (req, res) => {
