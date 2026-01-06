@@ -29,6 +29,7 @@ export class BobBot extends Client {
         this.llm = new PuterClient();
         this.debounceTimers = new Map();
         this.lastTypingTime = new Map(); // Track channel typing activity
+        this.lastResponseTime = new Map(); // Track when Bob last spoke in a channel
         this.voiceHandler = new VoiceHandler(); // Initialize Voice
 
         // Dashboard & Control State
@@ -77,6 +78,7 @@ export class BobBot extends Client {
                     // If they stop typing now, we reply in exactly 3000ms.
                     // If they keep typing, this gets cleared and pushed back again.
                     const newTimer = setTimeout(() => {
+                        this.debounceTimers.delete(typing.channel.id); // CRITICAL: Clear map entry
                         this.processChannelResponse(typing.channel);
                     }, 3000);
 
@@ -495,7 +497,14 @@ export class BobBot extends Client {
         const isReplyToMe = message.mentions.repliedUser && message.mentions.repliedUser.id === this.user.id;
         const isNamed = contentLower.includes('bob'); // "Bob is weird" -> Trigger AI
 
-        const shouldRespond = isMentioned || isDM || isReplyToMe || isNamed;
+        // CONTINUITY CHECK:
+        // If Bob spoke in this channel recently (< 2 mins), he stays "awake" to follow-ups.
+        const lastSpeak = this.lastResponseTime.get(message.channel.id) || 0;
+        const isActiveConversation = (Date.now() - lastSpeak) < 120000; // 2 Minutes
+
+        // If explicitly named/mentioned, ALWAYS respond.
+        // If just active conversation, respond (but LLM might [SILENCE] if not relevant).
+        const shouldRespond = isMentioned || isDM || isReplyToMe || isNamed || isActiveConversation;
 
         if (!shouldRespond) {
             // We still LOG the message above (passive reading), but we do NOT trigger a response.
@@ -514,6 +523,7 @@ export class BobBot extends Client {
         // Initial Debounce: Wait 3s for follow-up messages.
         // If they type within this window, typingStart will catch it and extend the timer.
         const timer = setTimeout(() => {
+            this.debounceTimers.delete(channelId); // CRITICAL: Clear map entry
             this.processChannelResponse(message.channel);
         }, 3000);
 
@@ -626,6 +636,8 @@ export class BobBot extends Client {
                 if (finalResponse && (!toolMatch || toolSuccess)) {
                     console.log(`Sending response: ${finalResponse}`);
                     await channel.send(finalResponse);
+                    // Update Continuity Timer (Mark this channel as 'Active')
+                    this.lastResponseTime.set(channel.id, Date.now());
                 }
             } else {
                 console.log('LLM chose SILENCE.');
